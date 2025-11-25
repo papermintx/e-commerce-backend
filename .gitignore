@@ -39,3 +39,5 @@ temp/
 
 # OS
 Thumbs.db
+
+/src/generated/prisma

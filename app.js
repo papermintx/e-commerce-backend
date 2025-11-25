@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const authRoutes = require('./src/routes/auth.routes');
+const adminRoutes = require('./src/routes/admin.routes');
+const publicRoutes = require('./src/routes/public.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,6 +51,12 @@ app.get('/', (req, res) => {
 
 // Auth routes
 app.use('/auth', authRoutes);
+
+// Admin routes (protected, admin only)
+app.use('/api/admin', adminRoutes);
+
+// Public routes (no authentication required)
+app.use('/api/public', publicRoutes);
 
 // ============================================
 // Error Handling

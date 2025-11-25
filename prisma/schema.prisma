@@ -1,0 +1,277 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Enum definitions
+enum UserRole {
+  admin
+  user
+}
+
+enum OrderStatus {
+  pending
+  paid
+  processing
+  shipped
+  delivered
+  cancelled
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+}
+
+// 1. User Profile (extends Supabase Auth)
+model Profile {
+  id         String   @id @db.Uuid
+  email      String   @unique
+  full_name  String?
+  phone      String?
+  role       UserRole @default(user)
+  avatar_url String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  products  Product[]
+  carts     Cart[]
+  addresses Address[]
+  orders    Order[]
+  reviews   Review[]
+  wishlists Wishlist[]
+
+  @@index([role])
+  @@index([email])
+  @@map("profiles")
+}
+
+// 2. Categories
+model Category {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @unique
+  slug        String    @unique
+  description String?   @db.Text
+  image_url   String?
+  is_active   Boolean   @default(true)
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  products    Product[]
+
+  @@index([slug])
+  @@index([is_active])
+  @@map("categories")
+}
+
+// 3. Products
+model Product {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  slug           String   @unique
+  description    String   @db.Text
+  price          Decimal  @db.Decimal(10, 2)
+  discount_price Decimal? @db.Decimal(10, 2)
+  stock          Int      @default(0)
+  category_id    String   @db.Uuid
+  sku            String   @unique
+  images         Json     @default("[]") // Array of image URLs
+  sizes          Json     @default("[]") // Array: ["S", "M", "L", "XL"]
+  colors         Json     @default("[]") // Array: ["Red", "Blue", "Black"]
+  weight         Decimal? @db.Decimal(5, 2) // in kg
+  is_featured    Boolean  @default(false)
+  is_active      Boolean  @default(true)
+  created_by     String   @db.Uuid
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  // Relations
+  category    Category    @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  creator     Profile     @relation(fields: [created_by], references: [id])
+  cart_items  CartItem[]
+  order_items OrderItem[]
+  reviews     Review[]
+  wishlists   Wishlist[]
+
+  @@index([category_id])
+  @@index([slug])
+  @@index([sku])
+  @@index([is_active])
+  @@index([is_featured])
+  @@map("products")
+}
+
+// 4. Carts
+model Cart {
+  id         String     @id @default(uuid()) @db.Uuid
+  user_id    String     @unique @db.Uuid
+  created_at DateTime   @default(now())
+  updated_at DateTime   @updatedAt
+  user       Profile    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  items      CartItem[]
+
+  @@index([user_id])
+  @@map("carts")
+}
+
+// 5. Cart Items
+model CartItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  cart_id    String   @db.Uuid
+  product_id String   @db.Uuid
+  quantity   Int      @default(1)
+  size       String?
+  color      String?
+  price      Decimal  @db.Decimal(10, 2) // Price snapshot
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  cart    Cart    @relation(fields: [cart_id], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([cart_id, product_id, size, color])
+  @@index([cart_id])
+  @@index([product_id])
+  @@map("cart_items")
+}
+
+// 6. Addresses
+model Address {
+  id             String   @id @default(uuid()) @db.Uuid
+  user_id        String   @db.Uuid
+  label          String // e.g., "Home", "Office"
+  recipient_name String
+  phone          String
+  address_line1  String
+  address_line2  String?
+  city           String
+  state          String
+  postal_code    String
+  country        String   @default("Indonesia")
+  is_default     Boolean  @default(false)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  // Relations
+  user   Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([user_id])
+  @@index([user_id, is_default])
+  @@map("addresses")
+}
+
+// 7. Orders
+model Order {
+  id                   String        @id @default(uuid()) @db.Uuid
+  order_number         String        @unique
+  user_id              String        @db.Uuid
+  shipping_address_id  String        @db.Uuid
+  shipping_method      String
+  shipping_cost        Decimal       @db.Decimal(10, 2)
+  subtotal             Decimal       @db.Decimal(10, 2)
+  discount             Decimal       @default(0) @db.Decimal(10, 2)
+  tax                  Decimal       @default(0) @db.Decimal(10, 2)
+  total                Decimal       @db.Decimal(10, 2)
+  status               OrderStatus   @default(pending)
+  payment_status       PaymentStatus @default(pending)
+  payment_method       String?
+  payment_proof        String? // URL to payment proof image
+  notes                String?       @db.Text
+  admin_notes          String?       @db.Text
+  tracking_number      String?
+  paid_at              DateTime?
+  shipped_at           DateTime?
+  delivered_at         DateTime?
+  cancelled_at         DateTime?
+  created_at           DateTime      @default(now())
+  updated_at           DateTime      @updatedAt
+
+  // Relations
+  user             Profile     @relation(fields: [user_id], references: [id])
+  shipping_address Address     @relation(fields: [shipping_address_id], references: [id])
+  items            OrderItem[]
+  reviews          Review[]
+
+  @@index([user_id])
+  @@index([status])
+  @@index([payment_status])
+  @@index([order_number])
+  @@index([created_at(sort: Desc)])
+  @@map("orders")
+}
+
+// 8. Order Items
+model OrderItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  order_id       String   @db.Uuid
+  product_id     String   @db.Uuid
+  product_name   String // Snapshot
+  product_sku    String
+  quantity       Int
+  size           String?
+  color          String?
+  price          Decimal  @db.Decimal(10, 2)
+  discount_price Decimal? @db.Decimal(10, 2)
+  subtotal       Decimal  @db.Decimal(10, 2)
+  created_at     DateTime @default(now())
+
+  // Relations
+  order   Order   @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [product_id], references: [id])
+
+  @@index([order_id])
+  @@index([product_id])
+  @@map("order_items")
+}
+
+// 9. Reviews
+model Review {
+  id          String   @id @default(uuid()) @db.Uuid
+  product_id  String   @db.Uuid
+  user_id     String   @db.Uuid
+  order_id    String   @db.Uuid
+  rating      Int // 1-5
+  comment     String?  @db.Text
+  images      Json?    @default("[]") // Array of review images
+  is_approved Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  user    Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@unique([order_id, product_id, user_id])
+  @@index([product_id])
+  @@index([user_id])
+  @@index([is_approved])
+  @@map("reviews")
+}
+
+// 10. Wishlist
+model Wishlist {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  product_id String   @db.Uuid
+  created_at DateTime @default(now())
+
+  // Relations
+  user    Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, product_id])
+  @@index([user_id])
+  @@index([product_id])
+  @@map("wishlists")
+}

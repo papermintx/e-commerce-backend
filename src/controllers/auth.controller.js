@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const prisma = require('../config/prisma');
 
 class AuthController {
   /**
@@ -8,6 +9,7 @@ class AuthController {
     try {
       const { email, password, fullName } = req.validatedBody;
 
+      // Sign up di Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -24,6 +26,24 @@ class AuthController {
           success: false,
           message: error.message,
         });
+      }
+
+      // Create profile di database
+      if (data.user) {
+        try {
+          await prisma.profile.create({
+            data: {
+              id: data.user.id,
+              email: data.user.email,
+              full_name: fullName || data.user.user_metadata?.full_name,
+              role: 'user', // Default role
+            },
+          });
+        } catch (dbError) {
+          console.error('Failed to create profile:', dbError);
+          // Don't block signup if profile creation fails
+          // Profile akan di-create saat first login
+        }
       }
 
       return res.status(201).json({
@@ -675,6 +695,66 @@ class AuthController {
       </body>
       </html>
     `);
+  }
+
+  /**
+   * Get Profile - Get current user profile with auto-create if not exists
+   */
+  async getProfile(req, res) {
+    try {
+      // req.user sudah di-set oleh auth.middleware.js
+      const userId = req.user.id;
+
+      // Cari profile di database
+      let profile = await prisma.profile.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          full_name: true,
+          phone: true,
+          role: true,
+          avatar_url: true,
+          created_at: true,
+          updated_at: true,
+        },
+      });
+
+      // Auto-create profile jika belum ada
+      if (!profile) {
+        profile = await prisma.profile.create({
+          data: {
+            id: userId,
+            email: req.user.email,
+            full_name: req.user.user_metadata?.full_name || null,
+            role: 'user', // Default role
+          },
+          select: {
+            id: true,
+            email: true,
+            full_name: true,
+            phone: true,
+            role: true,
+            avatar_url: true,
+            created_at: true,
+            updated_at: true,
+          },
+        });
+        console.log(`✅ Auto-created profile for user: ${req.user.email}`);
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: profile,
+      });
+    } catch (error) {
+      console.error('Get profile error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to get profile',
+        error: error.message,
+      });
+    }
   }
 }
 

@@ -29,4 +29,6 @@ const validateDto = (validateFunction) => {
   };
 };
 
+// Export as both default and named for flexibility
 module.exports = validateDto;
+module.exports.validate = validateDto;

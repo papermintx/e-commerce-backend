@@ -41,4 +41,6 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
+// Export with both names for compatibility
 module.exports = authMiddleware;
+module.exports.authenticate = authMiddleware;

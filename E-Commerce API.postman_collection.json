@@ -1,9 +1,10 @@
 {
 	"info": {
 		"_postman_id": "e-commerce-api-collection",
-		"name": "E-Commerce API",
-		"description": "Collection untuk E-Commerce Backend API dengan Supabase Authentication",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"name": "E-Commerce API - Fashion Store",
+		"description": "Collection untuk Fashion Store E-Commerce Backend API dengan Supabase Authentication & Role-Based Access Control (Admin/User)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"version": "2.0.0"
 	},
 	"item": [
 		{
@@ -353,6 +354,664 @@
 				"description": "Test validasi dengan field yang tidak lengkap"
 			},
 			"response": []
+		},
+		{
+			"name": "Admin - Categories",
+			"item": [
+				{
+					"name": "Create Category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.id) {",
+									"        pm.environment.set('categoryId', jsonData.data.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"description": "Admin access token required"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"T-Shirts\",\n  \"description\": \"Comfortable cotton t-shirts for everyday wear\",\n  \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/categories",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "categories"]
+						},
+						"description": "Create new category (Admin only). Requires admin role."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Categories",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"description": "Admin access token required"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/categories?page=1&limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "categories"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Items per page (default: 10, max: 100)"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search by name or description",
+									"disabled": true
+								},
+								{
+									"key": "is_active",
+									"value": "",
+									"description": "Filter by active status (true/false)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get all categories with pagination, search, and filters (Admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"description": "Admin access token required"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/categories/{{categoryId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "categories", "{{categoryId}}"]
+						},
+						"description": "Get category details by ID (Admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Category",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"description": "Admin access token required"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Premium T-Shirts\",\n  \"description\": \"High-quality premium cotton t-shirts\",\n  \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/categories/{{categoryId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "categories", "{{categoryId}}"]
+						},
+						"description": "Update category details (Admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Category",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"description": "Admin access token required"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/categories/{{categoryId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "categories", "{{categoryId}}"]
+						},
+						"description": "Delete category (Admin only). Cannot delete if category has products."
+					},
+					"response": []
+				}
+			],
+			"description": "Category management endpoints for admin users. All endpoints require admin role.",
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{accessToken}}",
+						"type": "string"
+					}
+				]
+			}
+		},
+		{
+			"name": "Admin - Products",
+			"item": [
+				{
+					"name": "Create Product with Images",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.id) {",
+									"        pm.environment.set('productId', jsonData.data.id);",
+									"        console.log('Product ID saved:', jsonData.data.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "name",
+									"value": "Classic White T-Shirt",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "Premium quality cotton t-shirt with comfortable fit",
+									"type": "text"
+								},
+								{
+									"key": "price",
+									"value": "199000",
+									"type": "text"
+								},
+								{
+									"key": "discount_price",
+									"value": "149000",
+									"type": "text"
+								},
+								{
+									"key": "stock",
+									"value": "100",
+									"type": "text"
+								},
+								{
+									"key": "category_id",
+									"value": "{{categoryId}}",
+									"type": "text"
+								},
+								{
+									"key": "sku",
+									"value": "TSH-WHT-001",
+									"type": "text"
+								},
+								{
+									"key": "sizes",
+									"value": "[\"S\", \"M\", \"L\", \"XL\"]",
+									"type": "text"
+								},
+								{
+									"key": "colors",
+									"value": "[\"White\", \"Black\", \"Grey\"]",
+									"type": "text"
+								},
+								{
+									"key": "weight",
+									"value": "0.2",
+									"type": "text"
+								},
+								{
+									"key": "is_featured",
+									"value": "true",
+									"type": "text"
+								},
+								{
+									"key": "images",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "images",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "images",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products"
+							]
+						},
+						"description": "Create product with multiple images (max 5) for carousel"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Products",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/products?page=1&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": "shirt",
+									"disabled": true
+								},
+								{
+									"key": "category_id",
+									"value": "{{categoryId}}",
+									"disabled": true
+								},
+								{
+									"key": "is_featured",
+									"value": "true",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Product by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/products/{{productId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products",
+								"{{productId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Product",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "name",
+									"value": "Updated Product Name",
+									"type": "text",
+									"disabled": true
+								},
+								{
+									"key": "price",
+									"value": "249000",
+									"type": "text",
+									"disabled": true
+								},
+								{
+									"key": "stock",
+									"value": "150",
+									"type": "text",
+									"disabled": true
+								},
+								{
+									"key": "images",
+									"type": "file",
+									"src": [],
+									"disabled": true
+								},
+								{
+									"key": "remove_images",
+									"value": "[\"https://image-url-to-remove.jpg\"]",
+									"type": "text",
+									"disabled": true
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/products/{{productId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products",
+								"{{productId}}"
+							]
+						},
+						"description": "Update product - can add new images and remove old ones"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Stock",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"stock\": 200\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/products/{{productId}}/stock",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products",
+								"{{productId}}",
+								"stock"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Featured",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/products/{{productId}}/featured",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products",
+								"{{productId}}",
+								"featured"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Product",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/products/{{productId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products",
+								"{{productId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Public - Products",
+			"item": [
+				{
+					"name": "Get All Products (Public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/public/products?page=1&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"products"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": "shirt",
+									"disabled": true
+								},
+								{
+									"key": "category_slug",
+									"value": "fashion",
+									"disabled": true
+								},
+								{
+									"key": "min_price",
+									"value": "100000",
+									"disabled": true
+								},
+								{
+									"key": "max_price",
+									"value": "500000",
+									"disabled": true
+								},
+								{
+									"key": "sort",
+									"value": "price_asc",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get products for shop page with carousel images"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Featured Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/public/products/featured?limit=8",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"products",
+								"featured"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "8"
+								}
+							]
+						},
+						"description": "Get featured products for homepage carousel"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Product by Slug",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/public/products/classic-white-t-shirt",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"products",
+								"classic-white-t-shirt"
+							]
+						},
+						"description": "Get product detail with full carousel images and reviews"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Related Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/public/products/classic-white-t-shirt/related?limit=4",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"products",
+								"classic-white-t-shirt",
+								"related"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "4"
+								}
+							]
+						},
+						"description": "Get related products from same category"
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"event": [
