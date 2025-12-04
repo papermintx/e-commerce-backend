@@ -1,9 +1,42 @@
-const { supabaseAdmin } = require('../config/supabase');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs').promises;
 
-// Configure multer for memory storage
-const storage = multer.memoryStorage();
+// Ensure uploads directory exists
+const UPLOAD_DIR = path.join(__dirname, '../../uploads');
+const ensureUploadDir = async () => {
+  try {
+    await fs.mkdir(UPLOAD_DIR, { recursive: true });
+    await fs.mkdir(path.join(UPLOAD_DIR, 'products'), { recursive: true });
+    await fs.mkdir(path.join(UPLOAD_DIR, 'categories'), { recursive: true });
+    await fs.mkdir(path.join(UPLOAD_DIR, 'avatars'), { recursive: true });
+  } catch (error) {
+    console.error('Failed to create upload directory:', error);
+  }
+};
+ensureUploadDir();
+
+// Configure multer for disk storage
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const folder = req.uploadFolder || 'products'; // Default to products
+    const uploadPath = path.join(UPLOAD_DIR, folder);
+    
+    try {
+      await fs.mkdir(uploadPath, { recursive: true });
+      cb(null, uploadPath);
+    } catch (error) {
+      cb(error);
+    }
+  },
+  filename: (req, file, cb) => {
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    const baseName = path.basename(file.originalname, ext).replace(/[^a-z0-9]/gi, '-').toLowerCase();
+    const uniqueFileName = `${baseName}-${timestamp}${ext}`;
+    cb(null, uniqueFileName);
+  },
+});
 
 // File filter to only accept images
 const fileFilter = (req, file, cb) => {
@@ -26,112 +59,74 @@ const upload = multer({
 });
 
 /**
- * Upload single file to Supabase Storage
- * @param {Buffer} fileBuffer - File buffer from multer
- * @param {string} fileName - Original filename
- * @param {string} bucket - Storage bucket name
- * @param {string} folder - Folder path in bucket (optional)
- * @returns {Promise<object>} Upload result with public URL
+ * Get public URL for uploaded file
+ * @param {string} filePath - Relative file path
+ * @returns {string} Public URL
  */
-async function uploadToSupabase(fileBuffer, fileName, bucket, folder = '') {
-  try {
-    // Generate unique filename
-    const timestamp = Date.now();
-    const ext = path.extname(fileName);
-    const baseName = path.basename(fileName, ext);
-    const uniqueFileName = `${baseName}-${timestamp}${ext}`;
-    const filePath = folder ? `${folder}/${uniqueFileName}` : uniqueFileName;
-
-    // Upload to Supabase Storage using admin client (bypasses RLS)
-    const { data, error } = await supabaseAdmin.storage
-      .from(bucket)
-      .upload(filePath, fileBuffer, {
-        contentType: 'image/jpeg', // Adjust based on file type
-        cacheControl: '3600',
-        upsert: false,
-      });
-
-    if (error) {
-      throw error;
-    }
-
-    // Get public URL
-    const { data: { publicUrl } } = supabaseAdmin.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
-
-    return {
-      success: true,
-      path: data.path,
-      publicUrl,
-      fileName: uniqueFileName,
-    };
-  } catch (error) {
-    console.error('Upload error:', error);
-    throw new Error(`Failed to upload file: ${error.message}`);
-  }
+function getPublicUrl(filePath) {
+  const baseUrl = process.env.APP_URL || 'http://localhost:3000';
+  return `${baseUrl}/uploads/${filePath}`;
 }
 
 /**
- * Upload multiple files to Supabase Storage
+ * Upload file result formatter
+ * File sudah diupload oleh multer, kita hanya perlu format response
+ * @param {object} file - File object from multer
+ * @param {string} folder - Folder name
+ * @returns {object} Upload result with public URL
+ */
+function formatUploadResult(file, folder = 'products') {
+  const relativePath = `${folder}/${file.filename}`;
+  return {
+    success: true,
+    path: relativePath,
+    publicUrl: getPublicUrl(relativePath),
+    fileName: file.filename,
+    originalName: file.originalname,
+    size: file.size,
+    mimetype: file.mimetype,
+  };
+}
+
+/**
+ * Format multiple upload results
  * @param {Array} files - Array of file objects from multer
- * @param {string} bucket - Storage bucket name
- * @param {string} folder - Folder path in bucket (optional)
- * @returns {Promise<Array>} Array of upload results
+ * @param {string} folder - Folder name
+ * @returns {Array} Array of upload results
  */
-async function uploadMultipleToSupabase(files, bucket, folder = '') {
-  try {
-    const uploadPromises = files.map((file) =>
-      uploadToSupabase(file.buffer, file.originalname, bucket, folder)
-    );
-
-    const results = await Promise.all(uploadPromises);
-    return results;
-  } catch (error) {
-    console.error('Multiple upload error:', error);
-    throw new Error(`Failed to upload files: ${error.message}`);
-  }
+function formatMultipleUploadResults(files, folder = 'products') {
+  return files.map((file) => formatUploadResult(file, folder));
 }
 
 /**
- * Delete file from Supabase Storage
- * @param {string} filePath - Path to file in bucket
- * @param {string} bucket - Storage bucket name
+ * Delete file from local storage
+ * @param {string} filePath - Relative file path (e.g., 'products/image-123.jpg')
  * @returns {Promise<boolean>} Success status
  */
-async function deleteFromSupabase(filePath, bucket) {
+async function deleteFile(filePath) {
   try {
-    const { error } = await supabaseAdmin.storage
-      .from(bucket)
-      .remove([filePath]);
-
-    if (error) {
-      throw error;
-    }
-
+    const fullPath = path.join(UPLOAD_DIR, filePath);
+    await fs.unlink(fullPath);
     return true;
   } catch (error) {
     console.error('Delete error:', error);
+    if (error.code === 'ENOENT') {
+      // File doesn't exist, consider it deleted
+      return true;
+    }
     throw new Error(`Failed to delete file: ${error.message}`);
   }
 }
 
 /**
- * Delete multiple files from Supabase Storage
- * @param {Array<string>} filePaths - Array of file paths
- * @param {string} bucket - Storage bucket name
+ * Delete multiple files from local storage
+ * @param {Array<string>} filePaths - Array of relative file paths
  * @returns {Promise<boolean>} Success status
  */
-async function deleteMultipleFromSupabase(filePaths, bucket) {
+async function deleteMultipleFiles(filePaths) {
   try {
-    const { error } = await supabaseAdmin.storage
-      .from(bucket)
-      .remove(filePaths);
-
-    if (error) {
-      throw error;
-    }
-
+    const deletePromises = filePaths.map((filePath) => deleteFile(filePath));
+    await Promise.all(deletePromises);
     return true;
   } catch (error) {
     console.error('Multiple delete error:', error);
@@ -139,10 +134,29 @@ async function deleteMultipleFromSupabase(filePaths, bucket) {
   }
 }
 
+/**
+ * Extract file path from public URL
+ * @param {string} publicUrl - Public URL of the file
+ * @returns {string|null} Relative file path or null
+ */
+function extractFilePathFromUrl(publicUrl) {
+  try {
+    // Extract path from URL like "http://localhost:3000/uploads/products/image-123.jpg"
+    const match = publicUrl.match(/\/uploads\/(.+)$/);
+    return match ? match[1] : null;
+  } catch (error) {
+    console.error('Extract path error:', error);
+    return null;
+  }
+}
+
 module.exports = {
   upload,
-  uploadToSupabase,
-  uploadMultipleToSupabase,
-  deleteFromSupabase,
-  deleteMultipleFromSupabase,
+  formatUploadResult,
+  formatMultipleUploadResults,
+  deleteFile,
+  deleteMultipleFiles,
+  getPublicUrl,
+  extractFilePathFromUrl,
+  UPLOAD_DIR,
 };

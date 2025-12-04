@@ -79,11 +79,11 @@ const validateResetPasswordDto = (data) => {
 const validateUpdatePasswordDto = (data) => {
   const errors = [];
 
-  // Validate accessToken
-  if (!data.accessToken) {
-    errors.push({ field: 'accessToken', message: 'Access token is required' });
-  } else if (typeof data.accessToken !== 'string') {
-    errors.push({ field: 'accessToken', message: 'Access token must be a string' });
+  // Validate token
+  if (!data.token) {
+    errors.push({ field: 'token', message: 'Reset token is required' });
+  } else if (typeof data.token !== 'string') {
+    errors.push({ field: 'token', message: 'Reset token must be a string' });
   }
 
   // Validate newPassword
@@ -101,18 +101,11 @@ const validateUpdatePasswordDto = (data) => {
 const validateVerifyEmailCallbackDto = (data) => {
   const errors = [];
 
-  // Validate accessToken
-  if (!data.accessToken) {
-    errors.push({ field: 'accessToken', message: 'Access token is required' });
-  } else if (typeof data.accessToken !== 'string') {
-    errors.push({ field: 'accessToken', message: 'Access token must be a string' });
-  }
-
-  // Validate type
-  if (!data.type) {
-    errors.push({ field: 'type', message: 'Type is required' });
-  } else if (typeof data.type !== 'string') {
-    errors.push({ field: 'type', message: 'Type must be a string' });
+  // Validate token
+  if (!data.token) {
+    errors.push({ field: 'token', message: 'Verification token is required' });
+  } else if (typeof data.token !== 'string') {
+    errors.push({ field: 'token', message: 'Verification token must be a string' });
   }
 
   return errors;

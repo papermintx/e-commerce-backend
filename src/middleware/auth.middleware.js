@@ -1,4 +1,5 @@
-const supabase = require('../config/supabase');
+const { verifyAccessToken } = require('../config/jwt');
+const prisma = require('../config/prisma');
 
 /**
  * Middleware untuk autentikasi JWT
@@ -18,14 +19,25 @@ const authMiddleware = async (req, res, next) => {
 
     const token = authHeader.replace('Bearer ', '');
 
-    // Verify token dengan Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    // Verify JWT token
+    const decoded = verifyAccessToken(token);
 
-    if (error || !user) {
+    // Get user from database
+    const user = await prisma.profile.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        email: true,
+        full_name: true,
+        role: true,
+        email_verified: true,
+      },
+    });
+
+    if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid or expired token',
-        error: error?.message,
+        message: 'User not found',
       });
     }
 
@@ -35,7 +47,7 @@ const authMiddleware = async (req, res, next) => {
   } catch (error) {
     return res.status(401).json({
       success: false,
-      message: 'Authentication failed',
+      message: 'Invalid or expired token',
       error: error.message,
     });
   }

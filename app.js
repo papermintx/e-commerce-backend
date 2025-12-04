@@ -1,8 +1,10 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const authRoutes = require('./src/routes/auth.routes');
 const adminRoutes = require('./src/routes/admin.routes');
 const publicRoutes = require('./src/routes/public.routes');
+const { verifyEmailConfig } = require('./src/config/email');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,6 +16,9 @@ const PORT = process.env.PORT || 3000;
 // Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Static files - serve uploaded images
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // CORS middleware (optional - untuk frontend development)
 app.use((req, res, next) => {
@@ -86,13 +91,16 @@ app.use((err, req, res, next) => {
 // Start Server
 // ============================================
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log('='.repeat(50));
   console.log(`🚀 E-Commerce API Server`);
   console.log(`📍 Running on: http://localhost:${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`⏰ Started at: ${new Date().toISOString()}`);
   console.log('='.repeat(50));
+  
+  // Verify email configuration
+  await verifyEmailConfig();
 });
 
 module.exports = app;

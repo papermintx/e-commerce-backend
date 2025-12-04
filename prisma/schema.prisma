@@ -6,7 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 // Enum definitions
@@ -31,16 +32,23 @@ enum PaymentStatus {
   refunded
 }
 
-// 1. User Profile (extends Supabase Auth)
+// 1. User Profile (Manual Authentication)
 model Profile {
-  id         String   @id @db.Uuid
-  email      String   @unique
-  full_name  String?
-  phone      String?
-  role       UserRole @default(user)
-  avatar_url String?
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id                    String    @id @default(uuid()) @db.Char(36)
+  email                 String    @unique
+  password              String    // Hashed password with bcrypt
+  full_name             String?
+  phone                 String?
+  role                  UserRole  @default(user)
+  avatar_url            String?
+  email_verified        Boolean   @default(false)
+  email_verify_token    String?   @unique @db.Char(64)
+  email_verify_expires  DateTime?
+  password_reset_token  String?   @unique @db.Char(64)
+  password_reset_expires DateTime?
+  refresh_token         String?   @db.Text
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
 
   // Relations
   products  Product[]
@@ -57,7 +65,7 @@ model Profile {
 
 // 2. Categories
 model Category {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(uuid()) @db.Char(36)
   name        String    @unique
   slug        String    @unique
   description String?   @db.Text
@@ -74,22 +82,22 @@ model Category {
 
 // 3. Products
 model Product {
-  id             String   @id @default(uuid()) @db.Uuid
+  id             String   @id @default(uuid()) @db.Char(36)
   name           String
   slug           String   @unique
   description    String   @db.Text
   price          Decimal  @db.Decimal(10, 2)
   discount_price Decimal? @db.Decimal(10, 2)
   stock          Int      @default(0)
-  category_id    String   @db.Uuid
+  category_id    String   @db.Char(36)
   sku            String   @unique
-  images         Json     @default("[]") // Array of image URLs
-  sizes          Json     @default("[]") // Array: ["S", "M", "L", "XL"]
-  colors         Json     @default("[]") // Array: ["Red", "Blue", "Black"]
+  images         Json     // Array of image URLs
+  sizes          Json     // Array: ["S", "M", "L", "XL"]
+  colors         Json     // Array: ["Red", "Blue", "Black"]
   weight         Decimal? @db.Decimal(5, 2) // in kg
   is_featured    Boolean  @default(false)
   is_active      Boolean  @default(true)
-  created_by     String   @db.Uuid
+  created_by     String   @db.Char(36)
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
 
@@ -111,8 +119,8 @@ model Product {
 
 // 4. Carts
 model Cart {
-  id         String     @id @default(uuid()) @db.Uuid
-  user_id    String     @unique @db.Uuid
+  id         String     @id @default(uuid()) @db.Char(36)
+  user_id    String     @unique @db.Char(36)
   created_at DateTime   @default(now())
   updated_at DateTime   @updatedAt
   user       Profile    @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -124,9 +132,9 @@ model Cart {
 
 // 5. Cart Items
 model CartItem {
-  id         String   @id @default(uuid()) @db.Uuid
-  cart_id    String   @db.Uuid
-  product_id String   @db.Uuid
+  id         String   @id @default(uuid()) @db.Char(36)
+  cart_id    String   @db.Char(36)
+  product_id String   @db.Char(36)
   quantity   Int      @default(1)
   size       String?
   color      String?
@@ -146,8 +154,8 @@ model CartItem {
 
 // 6. Addresses
 model Address {
-  id             String   @id @default(uuid()) @db.Uuid
-  user_id        String   @db.Uuid
+  id             String   @id @default(uuid()) @db.Char(36)
+  user_id        String   @db.Char(36)
   label          String // e.g., "Home", "Office"
   recipient_name String
   phone          String
@@ -172,10 +180,10 @@ model Address {
 
 // 7. Orders
 model Order {
-  id                   String        @id @default(uuid()) @db.Uuid
+  id                   String        @id @default(uuid()) @db.Char(36)
   order_number         String        @unique
-  user_id              String        @db.Uuid
-  shipping_address_id  String        @db.Uuid
+  user_id              String        @db.Char(36)
+  shipping_address_id  String        @db.Char(36)
   shipping_method      String
   shipping_cost        Decimal       @db.Decimal(10, 2)
   subtotal             Decimal       @db.Decimal(10, 2)
@@ -212,9 +220,9 @@ model Order {
 
 // 8. Order Items
 model OrderItem {
-  id             String   @id @default(uuid()) @db.Uuid
-  order_id       String   @db.Uuid
-  product_id     String   @db.Uuid
+  id             String   @id @default(uuid()) @db.Char(36)
+  order_id       String   @db.Char(36)
+  product_id     String   @db.Char(36)
   product_name   String // Snapshot
   product_sku    String
   quantity       Int
@@ -236,13 +244,13 @@ model OrderItem {
 
 // 9. Reviews
 model Review {
-  id          String   @id @default(uuid()) @db.Uuid
-  product_id  String   @db.Uuid
-  user_id     String   @db.Uuid
-  order_id    String   @db.Uuid
+  id          String   @id @default(uuid()) @db.Char(36)
+  product_id  String   @db.Char(36)
+  user_id     String   @db.Char(36)
+  order_id    String   @db.Char(36)
   rating      Int // 1-5
   comment     String?  @db.Text
-  images      Json?    @default("[]") // Array of review images
+  images      Json?    // Array of review images
   is_approved Boolean  @default(false)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
@@ -261,9 +269,9 @@ model Review {
 
 // 10. Wishlist
 model Wishlist {
-  id         String   @id @default(uuid()) @db.Uuid
-  user_id    String   @db.Uuid
-  product_id String   @db.Uuid
+  id         String   @id @default(uuid()) @db.Char(36)
+  user_id    String   @db.Char(36)
+  product_id String   @db.Char(36)
   created_at DateTime @default(now())
 
   // Relations

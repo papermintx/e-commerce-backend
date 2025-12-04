@@ -41,13 +41,20 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/auth/signup",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "signup"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"signup"
+							]
 						},
 						"description": "Register user baru. Email verification diperlukan sebelum login."
 					},
 					"response": []
 				},
+				{
+					"name": "Sign In",
 				{
 					"name": "Sign In",
 					"event": [
@@ -85,15 +92,18 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/auth/signin",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "signin"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"signin"
+							]
 						},
 						"description": "Login dengan email dan password. Email harus sudah diverifikasi."
 					},
 					"response": []
-				},
-				{
-					"name": "Get Profile",
+				},name": "Get Profile",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -105,13 +115,16 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/auth/me",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "me"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
 						},
 						"description": "Get current user profile (requires authentication)"
 					},
-					"response": []
-				},
 				{
 					"name": "Refresh Token",
 					"event": [
@@ -144,13 +157,18 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/auth/refresh",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "refresh"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
 						},
 						"description": "Refresh access token (berlaku 15 menit) menggunakan refresh token (berlaku 7 hari)"
 					},
 					"response": []
-				},
+				},,
 				{
 					"name": "Reset Password Request",
 					"event": [
@@ -177,17 +195,6 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"{{testEmail}}\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/reset-password",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "reset-password"]
-						},
-						"description": "Request password reset email. Link berlaku 1 jam."
-					},
-					"response": []
-				},
 				{
 					"name": "Resend Verification Email",
 					"event": [
@@ -216,15 +223,6 @@
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"{{testEmail}}\"\n}"
 						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/resend-verification",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "resend-verification"]
-						},
-						"description": "Resend email verification. Link berlaku 24 jam."
-					},
-					"response": []
-				},
 				{
 					"name": "Sign Out",
 					"event": [
@@ -255,16 +253,53 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/auth/signout",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "signout"]
+			"description": "Authentication endpoints dengan JWT. Email verification diperlukan sebelum login."
+		},			"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"signout"
+							]
 						},
 						"description": "Logout user dan hapus refresh token dari database"
 					},
 					"response": []
+				}			"auth",
+								"resend-verification"
+							]
+						},
+						"description": "Resend email verification"
+					},
+					"response": []
+				},
+				{
+					"name": "Sign Out",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/signout",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"signout"
+							]
+						},
+						"description": "Logout user (requires authentication)"
+					},
+					"response": []
 				}
 			],
-			"description": "Authentication endpoints dengan JWT. Email verification diperlukan sebelum login."
+			"description": "Authentication endpoints untuk register, login, logout, dan password management"
 		},
 		{
 			"name": "Health Check",
@@ -273,8 +308,12 @@
 				"header": [],
 				"url": {
 					"raw": "{{baseUrl}}/",
-					"host": ["{{baseUrl}}"],
-					"path": [""]
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						""
+					]
 				},
 				"description": "Health check endpoint untuk memastikan API berjalan"
 			},
@@ -296,8 +335,13 @@
 				},
 				"url": {
 					"raw": "{{baseUrl}}/auth/signup",
-					"host": ["{{baseUrl}}"],
-					"path": ["auth", "signup"]
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"auth",
+						"signup"
+					]
 				},
 				"description": "Test validasi dengan email yang tidak valid"
 			},
@@ -319,8 +363,13 @@
 				},
 				"url": {
 					"raw": "{{baseUrl}}/auth/signup",
-					"host": ["{{baseUrl}}"],
-					"path": ["auth", "signup"]
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"auth",
+						"signup"
+					]
 				},
 				"description": "Test validasi dengan password kurang dari 6 karakter"
 			},
@@ -342,8 +391,13 @@
 				},
 				"url": {
 					"raw": "{{baseUrl}}/auth/signup",
-					"host": ["{{baseUrl}}"],
-					"path": ["auth", "signup"]
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"auth",
+						"signup"
+					]
 				},
 				"description": "Test validasi dengan field yang tidak lengkap"
 			},
@@ -629,8 +683,14 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/admin/products",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "admin", "products"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products"
+							]
 						},
 						"description": "Create product with multiple images (max 5) for carousel"
 					},
@@ -649,8 +709,14 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/admin/products?page=1&limit=10",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "admin", "products"],
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products"
+							],
 							"query": [
 								{
 									"key": "page",
@@ -693,8 +759,15 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/admin/products/{{productId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "admin", "products", "{{productId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products",
+								"{{productId}}"
+							]
 						}
 					},
 					"response": []
@@ -747,8 +820,15 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/admin/products/{{productId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "admin", "products", "{{productId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products",
+								"{{productId}}"
+							]
 						},
 						"description": "Update product - can add new images and remove old ones"
 					},
@@ -776,8 +856,16 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/admin/products/{{productId}}/stock",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "admin", "products", "{{productId}}", "stock"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products",
+								"{{productId}}",
+								"stock"
+							]
 						}
 					},
 					"response": []
@@ -795,8 +883,16 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/admin/products/{{productId}}/featured",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "admin", "products", "{{productId}}", "featured"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products",
+								"{{productId}}",
+								"featured"
+							]
 						}
 					},
 					"response": []
@@ -814,8 +910,15 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/admin/products/{{productId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "admin", "products", "{{productId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"products",
+								"{{productId}}"
+							]
 						}
 					},
 					"response": []
@@ -832,8 +935,14 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/public/products?page=1&limit=10",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "public", "products"],
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"products"
+							],
 							"query": [
 								{
 									"key": "page",
@@ -881,8 +990,15 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/public/products/featured?limit=8",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "public", "products", "featured"],
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"products",
+								"featured"
+							],
 							"query": [
 								{
 									"key": "limit",
@@ -901,8 +1017,15 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/public/products/classic-white-t-shirt",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "public", "products", "classic-white-t-shirt"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"products",
+								"classic-white-t-shirt"
+							]
 						},
 						"description": "Get product detail with full carousel images and reviews"
 					},
@@ -915,8 +1038,16 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/public/products/classic-white-t-shirt/related?limit=4",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "public", "products", "classic-white-t-shirt", "related"],
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"products",
+								"classic-white-t-shirt",
+								"related"
+							],
 							"query": [
 								{
 									"key": "limit",
@@ -936,14 +1067,18 @@
 			"listen": "prerequest",
 			"script": {
 				"type": "text/javascript",
-				"exec": [""]
+				"exec": [
+					""
+				]
 			}
 		},
 		{
 			"listen": "test",
 			"script": {
 				"type": "text/javascript",
-				"exec": [""]
+				"exec": [
+					""
+				]
 			}
 		}
 	],

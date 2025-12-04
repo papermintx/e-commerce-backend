@@ -1,5 +1,8 @@
-const supabase = require('../config/supabase');
+const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
+const { generateTokens, verifyRefreshToken } = require('../config/jwt');
+const { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail } = require('../config/email');
+const { generateToken, generateExpirationTime } = require('../utils/token');
 
 class AuthController {
   /**
@@ -9,41 +12,44 @@ class AuthController {
     try {
       const { email, password, fullName } = req.validatedBody;
 
-      // Sign up di Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-          emailRedirectTo: `${process.env.APP_URL || 'http://localhost:3000'}/auth/verify-email`,
-        },
+      // Check if user already exists
+      const existingUser = await prisma.profile.findUnique({
+        where: { email },
       });
 
-      if (error) {
+      if (existingUser) {
         return res.status(400).json({
           success: false,
-          message: error.message,
+          message: 'Email already registered',
         });
       }
 
-      // Create profile di database
-      if (data.user) {
-        try {
-          await prisma.profile.create({
-            data: {
-              id: data.user.id,
-              email: data.user.email,
-              full_name: fullName || data.user.user_metadata?.full_name,
-              role: 'user', // Default role
-            },
-          });
-        } catch (dbError) {
-          console.error('Failed to create profile:', dbError);
-          // Don't block signup if profile creation fails
-          // Profile akan di-create saat first login
-        }
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Generate email verification token
+      const emailVerifyToken = generateToken();
+      const emailVerifyExpires = generateExpirationTime(24); // 24 hours
+
+      // Create user
+      const user = await prisma.profile.create({
+        data: {
+          email,
+          password: hashedPassword,
+          full_name: fullName,
+          role: 'user',
+          email_verified: false,
+          email_verify_token: emailVerifyToken,
+          email_verify_expires: emailVerifyExpires,
+        },
+      });
+
+      // Send verification email
+      try {
+        await sendVerificationEmail(email, emailVerifyToken);
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        // Don't block signup if email fails
       }
 
       return res.status(201).json({
@@ -51,19 +57,15 @@ class AuthController {
         message: 'Sign up successful! Please check your email to verify your account.',
         data: {
           user: {
-            id: data.user.id,
-            email: data.user.email,
-            fullName: data.user.user_metadata?.full_name,
-            emailVerified: data.user.email_confirmed_at !== null,
+            id: user.id,
+            email: user.email,
+            fullName: user.full_name,
+            emailVerified: user.email_verified,
           },
-          session: data.session ? {
-            accessToken: data.session.access_token,
-            refreshToken: data.session.refresh_token,
-            expiresIn: data.session.expires_in,
-          } : null,
         },
       });
     } catch (error) {
+      console.error('Sign up error:', error);
       return res.status(500).json({
         success: false,
         message: 'Server error',
@@ -79,38 +81,58 @@ class AuthController {
     try {
       const { email, password } = req.validatedBody;
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Find user
+      const user = await prisma.profile.findUnique({
+        where: { email },
       });
 
-      if (error) {
+      if (!user) {
         return res.status(401).json({
           success: false,
-          message: error.message,
+          message: 'Invalid email or password',
         });
       }
+
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password',
+        });
+      }
+
+      // Generate tokens
+      const { accessToken, refreshToken } = generateTokens(user);
+
+      // Save refresh token to database
+      await prisma.profile.update({
+        where: { id: user.id },
+        data: { refresh_token: refreshToken },
+      });
 
       return res.status(200).json({
         success: true,
         message: 'Sign in successful',
         data: {
           user: {
-            id: data.user.id,
-            email: data.user.email,
-            fullName: data.user.user_metadata?.full_name,
-            emailVerified: data.user.email_confirmed_at !== null,
-            createdAt: data.user.created_at,
+            id: user.id,
+            email: user.email,
+            fullName: user.full_name,
+            role: user.role,
+            emailVerified: user.email_verified,
+            createdAt: user.created_at,
           },
           session: {
-            accessToken: data.session.access_token,
-            refreshToken: data.session.refresh_token,
-            expiresIn: data.session.expires_in,
-            expiresAt: data.session.expires_at,
+            accessToken,
+            refreshToken,
+            expiresIn: 900, // 15 minutes in seconds
           },
         },
       });
     } catch (error) {
+      console.error('Sign in error:', error);
       return res.status(500).json({
         success: false,
         message: 'Server error',
@@ -124,20 +146,18 @@ class AuthController {
    */
   async signOut(req, res) {
     try {
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        return res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-      }
+      // Clear refresh token from database
+      await prisma.profile.update({
+        where: { id: req.user.id },
+        data: { refresh_token: null },
+      });
 
       return res.status(200).json({
         success: true,
         message: 'Sign out successful',
       });
     } catch (error) {
+      console.error('Sign out error:', error);
       return res.status(500).json({
         success: false,
         message: 'Server error',
@@ -153,39 +173,52 @@ class AuthController {
     try {
       const { refreshToken } = req.validatedBody;
 
-      const { data, error } = await supabase.auth.refreshSession({
-        refresh_token: refreshToken,
+      // Verify refresh token
+      const decoded = verifyRefreshToken(refreshToken);
+
+      // Find user and verify refresh token
+      const user = await prisma.profile.findUnique({
+        where: { id: decoded.id },
       });
 
-      if (error) {
+      if (!user || user.refresh_token !== refreshToken) {
         return res.status(401).json({
           success: false,
-          message: error.message,
+          message: 'Invalid refresh token',
         });
       }
+
+      // Generate new tokens
+      const tokens = generateTokens(user);
+
+      // Update refresh token
+      await prisma.profile.update({
+        where: { id: user.id },
+        data: { refresh_token: tokens.refreshToken },
+      });
 
       return res.status(200).json({
         success: true,
         message: 'Token refreshed successfully',
         data: {
           session: {
-            accessToken: data.session.access_token,
-            refreshToken: data.session.refresh_token,
-            expiresIn: data.session.expires_in,
-            expiresAt: data.session.expires_at,
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            expiresIn: 900, // 15 minutes
           },
           user: {
-            id: data.user.id,
-            email: data.user.email,
-            fullName: data.user.user_metadata?.full_name,
+            id: user.id,
+            email: user.email,
+            fullName: user.full_name,
+            role: user.role,
           },
         },
       });
     } catch (error) {
-      return res.status(500).json({
+      console.error('Refresh token error:', error);
+      return res.status(401).json({
         success: false,
-        message: 'Server error',
-        error: error.message,
+        message: error.message || 'Invalid refresh token',
       });
     }
   }
@@ -222,22 +255,45 @@ class AuthController {
     try {
       const { email } = req.validatedBody;
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.APP_URL || 'http://localhost:3000'}/auth/reset-password-confirm`,
+      // Find user
+      const user = await prisma.profile.findUnique({
+        where: { email },
       });
 
-      if (error) {
-        return res.status(400).json({
-          success: false,
-          message: error.message,
+      // Always return success even if user not found (security best practice)
+      if (!user) {
+        return res.status(200).json({
+          success: true,
+          message: 'If that email exists, a password reset link has been sent.',
         });
+      }
+
+      // Generate reset token
+      const resetToken = generateToken();
+      const resetExpires = generateExpirationTime(1); // 1 hour
+
+      // Save token to database
+      await prisma.profile.update({
+        where: { id: user.id },
+        data: {
+          password_reset_token: resetToken,
+          password_reset_expires: resetExpires,
+        },
+      });
+
+      // Send reset email
+      try {
+        await sendPasswordResetEmail(email, resetToken);
+      } catch (emailError) {
+        console.error('Failed to send password reset email:', emailError);
       }
 
       return res.status(200).json({
         success: true,
-        message: 'Password reset email sent! Please check your inbox.',
+        message: 'If that email exists, a password reset link has been sent.',
       });
     } catch (error) {
+      console.error('Reset password error:', error);
       return res.status(500).json({
         success: false,
         message: 'Server error',
@@ -247,42 +303,48 @@ class AuthController {
   }
 
   /**
-   * Update Password - Change user password
+   * Update Password - Change user password with reset token
    */
   async updatePassword(req, res) {
     try {
-      const { accessToken, newPassword } = req.validatedBody;
+      const { token, newPassword } = req.validatedBody;
 
-      // Set session with access token
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: accessToken,
+      // Find user by reset token
+      const user = await prisma.profile.findFirst({
+        where: {
+          password_reset_token: token,
+          password_reset_expires: {
+            gte: new Date(), // Token belum expired
+          },
+        },
       });
 
-      if (sessionError) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid access token',
-        });
-      }
-
-      // Update password
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) {
+      if (!user) {
         return res.status(400).json({
           success: false,
-          message: error.message,
+          message: 'Invalid or expired reset token',
         });
       }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update password and clear reset token
+      await prisma.profile.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          password_reset_token: null,
+          password_reset_expires: null,
+        },
+      });
 
       return res.status(200).json({
         success: true,
         message: 'Password updated successfully',
       });
     } catch (error) {
+      console.error('Update password error:', error);
       return res.status(500).json({
         success: false,
         message: 'Server error',
@@ -296,15 +358,40 @@ class AuthController {
    */
   async verifyEmailCallback(req, res) {
     try {
-      const { accessToken, type } = req.validatedBody;
+      const { token } = req.validatedBody;
 
-      const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+      // Find user by verification token
+      const user = await prisma.profile.findFirst({
+        where: {
+          email_verify_token: token,
+          email_verify_expires: {
+            gte: new Date(),
+          },
+        },
+      });
 
-      if (error || !user) {
+      if (!user) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid verification token',
+          message: 'Invalid or expired verification token',
         });
+      }
+
+      // Update user as verified
+      await prisma.profile.update({
+        where: { id: user.id },
+        data: {
+          email_verified: true,
+          email_verify_token: null,
+          email_verify_expires: null,
+        },
+      });
+
+      // Send welcome email
+      try {
+        await sendWelcomeEmail(user.email, user.full_name);
+      } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError);
       }
 
       return res.status(200).json({
@@ -313,6 +400,7 @@ class AuthController {
         email: user.email,
       });
     } catch (error) {
+      console.error('Verify email error:', error);
       return res.status(500).json({
         success: false,
         message: 'Server error',
@@ -328,18 +416,46 @@ class AuthController {
     try {
       const { email } = req.validatedBody;
 
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email,
-        options: {
-          emailRedirectTo: `${process.env.APP_URL || 'http://localhost:3000'}/auth/verify-email`,
+      // Find user
+      const user = await prisma.profile.findUnique({
+        where: { email },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+      }
+
+      if (user.email_verified) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already verified',
+        });
+      }
+
+      // Generate new token
+      const emailVerifyToken = generateToken();
+      const emailVerifyExpires = generateExpirationTime(24);
+
+      // Update token
+      await prisma.profile.update({
+        where: { id: user.id },
+        data: {
+          email_verify_token: emailVerifyToken,
+          email_verify_expires: emailVerifyExpires,
         },
       });
 
-      if (error) {
-        return res.status(400).json({
+      // Send verification email
+      try {
+        await sendVerificationEmail(email, emailVerifyToken);
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        return res.status(500).json({
           success: false,
-          message: error.message,
+          message: 'Failed to send verification email',
         });
       }
 
@@ -348,6 +464,7 @@ class AuthController {
         message: 'Verification email sent successfully',
       });
     } catch (error) {
+      console.error('Resend verification error:', error);
       return res.status(500).json({
         success: false,
         message: 'Server error',
@@ -436,33 +553,25 @@ class AuthController {
         </div>
 
         <script>
-          function parseHashFragment() {
-            const hash = window.location.hash.substring(1);
-            const params = new URLSearchParams(hash);
-            return {
-              access_token: params.get('access_token'),
-              refresh_token: params.get('refresh_token'),
-              type: params.get('type')
-            };
+          function getTokenFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('token');
           }
 
           async function verifyEmail() {
             document.getElementById('loading').style.display = 'block';
             
             try {
-              const tokens = parseHashFragment();
+              const token = getTokenFromUrl();
               
-              if (!tokens.access_token) {
+              if (!token) {
                 throw new Error('No verification token found in URL');
               }
 
               const response = await fetch('/auth/verify-email/callback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  accessToken: tokens.access_token,
-                  type: tokens.type || 'signup'
-                })
+                body: JSON.stringify({ token })
               });
 
               const result = await response.json();
@@ -657,18 +766,17 @@ class AuthController {
               submitBtn.disabled = true;
               submitBtn.textContent = 'Resetting Password...';
 
-              const hash = window.location.hash.substring(1);
-              const params = new URLSearchParams(hash);
-              const accessToken = params.get('access_token');
+              const params = new URLSearchParams(window.location.search);
+              const token = params.get('token');
 
-              if (!accessToken) {
+              if (!token) {
                 throw new Error('Invalid reset link. Please request a new password reset.');
               }
 
               const response = await fetch('/auth/update-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ accessToken, newPassword })
+                body: JSON.stringify({ token, newPassword })
               });
 
               const result = await response.json();
@@ -698,16 +806,12 @@ class AuthController {
   }
 
   /**
-   * Get Profile - Get current user profile with auto-create if not exists
+   * Get Profile - Get current user profile
    */
   async getProfile(req, res) {
     try {
-      // req.user sudah di-set oleh auth.middleware.js
-      const userId = req.user.id;
-
-      // Cari profile di database
-      let profile = await prisma.profile.findUnique({
-        where: { id: userId },
+      const profile = await prisma.profile.findUnique({
+        where: { id: req.user.id },
         select: {
           id: true,
           email: true,
@@ -715,32 +819,17 @@ class AuthController {
           phone: true,
           role: true,
           avatar_url: true,
+          email_verified: true,
           created_at: true,
           updated_at: true,
         },
       });
 
-      // Auto-create profile jika belum ada
       if (!profile) {
-        profile = await prisma.profile.create({
-          data: {
-            id: userId,
-            email: req.user.email,
-            full_name: req.user.user_metadata?.full_name || null,
-            role: 'user', // Default role
-          },
-          select: {
-            id: true,
-            email: true,
-            full_name: true,
-            phone: true,
-            role: true,
-            avatar_url: true,
-            created_at: true,
-            updated_at: true,
-          },
+        return res.status(404).json({
+          success: false,
+          message: 'Profile not found',
         });
-        console.log(`✅ Auto-created profile for user: ${req.user.email}`);
       }
 
       return res.status(200).json({
